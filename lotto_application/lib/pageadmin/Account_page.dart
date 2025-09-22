@@ -146,56 +146,49 @@ class _AccountadminState extends State<Account_admin> {
         ],
       ),
       body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // แสดงยอดเงินที่ดึงจาก API
+            // User Info Section
             Container(
-              padding: const EdgeInsets.all(12),
-              width: double.infinity,
-              decoration: const BoxDecoration(
-                color: Color.fromARGB(255, 74, 74, 74),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade900,
+                borderRadius: BorderRadius.circular(16),
               ),
-              child: Text(
-                "ยอดเงินในบัญชี: $balance ฿",
-                style: const TextStyle(fontSize: 16, color: Colors.white),
-              ),
-            ),
-
-            // แสดงชื่อและเบอร์โทรศัพท์
-            Container(
-              padding: const EdgeInsets.all(12),
-              width: double.infinity,
-              decoration: const BoxDecoration(
-                color: Color.fromARGB(255, 2, 84, 177),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    fullname, // แสดงชื่อ
-                    style: const TextStyle(fontSize: 16, color: Colors.white),
+                    fullname,
+                    style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    "เบอร์โทร: $phone",
+                    style: const TextStyle(color: Colors.white70),
                   ),
                   Text(
-                    "เบอร์ $phone", // แสดงเบอร์โทร
-                    style: const TextStyle(fontSize: 16, color: Colors.white),
+                    "บทบาท: $role",
+                    style: const TextStyle(color: Colors.white70),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      const Icon(Icons.account_balance_wallet, color: Colors.white),
+                      const SizedBox(width: 8),
+                      Text(
+                        "ยอดเงิน: $balance ฿",
+                        style: const TextStyle(color: Colors.white, fontSize: 18),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
 
-            // แสดง role ด้านบนยอดเงิน
-            Container(
-              padding: const EdgeInsets.all(12),
-              width: double.infinity,
-              decoration: const BoxDecoration(
-                color: Color.fromARGB(255, 2, 84, 177),
-              ),
-              child: Text(
-                "Role: $role", // แสดง role ที่ดึงมาจาก API
-                style: const TextStyle(fontSize: 16, color: Colors.white),
-              ),
-            ),
+            
           ],
         ),
       ),

@@ -78,38 +78,56 @@ class _RandomPageState extends State<RandomPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("ระบบออกรางวัล"),
-        backgroundColor: Colors.teal,
-        centerTitle: true,
-      ),
+      
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             ElevatedButton.icon(
               onPressed: drawNumbers,
-              icon: const Icon(Icons.casino),
-              label: const Text("สุ่มออกรางวัลใหม่"),
+              icon: const Icon(Icons.casino, size: 28),
+              label: const Text("สุ่มออกรางวัลใหม่", style: TextStyle(fontSize: 18)),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.teal,
                 padding: const EdgeInsets.symmetric(
                   vertical: 14,
                   horizontal: 24,
                 ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 5,
               ),
             ),
             const SizedBox(height: 16),
             if (isLoading)
-              const CircularProgressIndicator()
+              const Center(child: CircularProgressIndicator())
             else if (winners.isEmpty)
-              const Text("ยังไม่มีการออกรางวัล", style: TextStyle(fontSize: 16))
+              const Center(
+                child: Text(
+                  "ยังไม่มีการออกรางวัล",
+                  style: TextStyle(fontSize: 16, color: Colors.grey),
+                ),
+              )
             else
               Expanded(
                 child: ListView(
                   children: winners.entries.expand((entry) {
                     final prizeKey = entry.key;
-                    final numbers = entry.value;
+                    List<String> numbers = entry.value;
+
+                    // ตัดให้เหลือ 3 หรือ 2 หลักตามประเภท
+                    if (prizeKey == 'last3') {
+                      numbers = numbers
+                          .map((num) => num.substring(num.length - 3))
+                          .toList();
+                    } else if (prizeKey == 'last2') {
+                      numbers = numbers
+                          .map((num) => num.substring(num.length - 2))
+                          .toList();
+                    }
+
                     return [
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 8),
@@ -118,14 +136,22 @@ class _RandomPageState extends State<RandomPage> {
                           style: const TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
+                            color: Colors.teal,
                           ),
                         ),
                       ),
                       ...numbers.map(
                         (num) => Card(
-                          color: Colors.teal[100],
+                          color: Colors.teal[50],
                           margin: const EdgeInsets.symmetric(vertical: 4),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                          elevation: 3,
                           child: ListTile(
+                            contentPadding: const EdgeInsets.symmetric(
+                              vertical: 12,
+                              horizontal: 20,
+                            ),
                             title: Text(
                               num,
                               style: const TextStyle(fontSize: 18),

@@ -5,13 +5,12 @@ import 'dart:convert';
 
 class BuyLottoPage extends StatefulWidget {
   final String userId; // รับ userId จาก HomePage
-  final VoidCallback?
-  onBalanceUpdated; // ประกาศตัวแปรเก็บฟังก์ชันจากหน้า home_page
+  final VoidCallback? onBalanceUpdated; // ฟังก์ชัน callback เมื่อตัวเลข balance อัพเดตแล้ว
 
   const BuyLottoPage({
     super.key,
     required this.userId,
-    this.onBalanceUpdated, //รับค่าและเก็บไว้ในตัวแปร onBalanceUpdated
+    this.onBalanceUpdated,
   });
 
   @override
@@ -19,22 +18,22 @@ class BuyLottoPage extends StatefulWidget {
 }
 
 class _BuyLottoPageState extends State<BuyLottoPage> {
-  List<String> lottoNumbers = []; // List to hold fetched lotto numbers
-  late List<bool> selected; // To keep track of selected lotto numbers
-  String searchQuery = ""; // For search query
-  Timer? _debounce; // Timer for debouncing search
-  bool isLoading = false; // To show loading indicator
-  String? errorMessage; // To display error messages
-  double totalCost = 0; // To keep track of the total cost
+  List<String> lottoNumbers = []; // รายการเลขล็อตโต้ทั้งหมด
+  late List<bool> selected; // สถานะเลือกเลขล็อตโต้ (true = เลือก, false = ไม่เลือก)
+  String searchQuery = ""; // คำค้นหาเลขล็อตโต้
+  Timer? _debounce; // ตัวจับเวลาสำหรับดีเบาท์ (debounce) การค้นหา
+  bool isLoading = false; // สถานะโหลดข้อมูล
+  String? errorMessage; // เก็บข้อความแสดงข้อผิดพลาด
+  double totalCost = 0; // ยอดรวมราคาทั้งหมดที่เลือก
 
-  late String userId; // รับ userId จาก HomePage
+  late String userId; // เก็บ userId ที่รับมาจากหน้า HomePage
 
   @override
   void initState() {
     super.initState();
     userId = widget.userId; // เก็บค่า userId จาก widget
-    selected = List.filled(lottoNumbers.length, false);
-    fetchLottoNumbers(); // Fetch lotto numbers when the page loads
+    selected = List.filled(lottoNumbers.length, false); // สร้าง list สถานะการเลือก (เริ่มต้นไม่เลือก)
+    fetchLottoNumbers(); // เรียกดึงข้อมูลเลขล็อตโต้จาก API
   }
 
   // ฟังก์ชันดึงหมายเลขล็อตโต้จาก API
@@ -53,17 +52,15 @@ class _BuyLottoPageState extends State<BuyLottoPage> {
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body)['data'];
 
-        // กรองเฉพาะหมายเลขที่ status = 0
+        // กรองเฉพาะเลขที่ status = 0 (ยังไม่ถูกซื้อ)
         setState(() {
           lottoNumbers = data
-              .where((item) => item['status'] == 0) // กรองเฉพาะที่ status = 0
+              .where((item) => item['status'] == 0)
               .map<String>((item) => item['number'].toString())
               .toList();
-          selected = List.filled(
-            lottoNumbers.length,
-            false,
-          ); // รีเซ็ทสถานะการเลือก
-          totalCost = 0; // รีเซ็ทยอดเงินเมื่อดึงข้อมูลใหม่
+
+          selected = List.filled(lottoNumbers.length, false); // รีเซ็ตสถานะเลือก
+          totalCost = 0; // รีเซ็ทยอดรวม
           isLoading = false;
         });
       } else {
@@ -80,7 +77,7 @@ class _BuyLottoPageState extends State<BuyLottoPage> {
     }
   }
 
-  // ฟังก์ชันอัพเดตสถานะและเจ้าของของเลขล็อตโต้ พร้อมกับหักเงินจากบัญชีผู้ใช้
+  // ฟังก์ชันอัพเดตสถานะเจ้าของเลขล็อตโต้และหักเงินจากบัญชีผู้ใช้
   Future<void> updateLottoOwnerAndBalance(List<String> selectedNumbers) async {
     try {
       // อัพเดตสถานะของเลขล็อตโต้ในฐานข้อมูล
@@ -89,42 +86,43 @@ class _BuyLottoPageState extends State<BuyLottoPage> {
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
           'selectedNumbers': selectedNumbers,
-          'userId': userId, // ส่ง userId ไปพร้อมกับ selectedNumbers
-          'status': 1, // เปลี่ยน status เป็น 1 เมื่อซื้อ
+          'userId': userId,
+          'status': 1, // เปลี่ยนสถานะเป็น 1 = ถูกซื้อแล้ว
         }),
       );
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
+
         if (data['success']) {
-          // รีเฟรชข้อมูลล็อตโต้หลังจากอัพเดต
+          // รีเฟรชข้อมูลล็อตโต้หลังอัพเดต
           fetchLottoNumbers();
 
-          // เรียกฟังก์ชันเพื่อลดยอดเงินจากบัญชี
-          updateUserBalance(totalCost); // หักเงินจากบัญชีผู้ใช้
+          // หักเงินจากบัญชีผู้ใช้
+          updateUserBalance(totalCost);
 
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text("ซื้อเลขล็อตโต้เรียบร้อย")));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("ซื้อเลขล็อตโต้เรียบร้อย")),
+          );
         } else {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text("ไม่สามารถซื้อเลขล็อตโต้ได้")));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("ไม่สามารถซื้อเลขล็อตโต้ได้")),
+          );
         }
       } else {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text("เกิดข้อผิดพลาดในการซื้อ")));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("เกิดข้อผิดพลาดในการซื้อ")),
+        );
       }
     } catch (e) {
       print("Error: $e");
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("ไม่สามารถเชื่อมต่อกับ API ได้")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("ไม่สามารถเชื่อมต่อกับ API ได้")),
+      );
     }
   }
 
-  // ฟังก์ชันอัพเดตยอดเงินของผู้ใช้หลังจากซื้อ
+  // ฟังก์ชันอัพเดตยอดเงินผู้ใช้หลังซื้อเลข
   Future<void> updateUserBalance(double totalCost) async {
     try {
       final response = await http.put(
@@ -138,40 +136,42 @@ class _BuyLottoPageState extends State<BuyLottoPage> {
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
+
         if (data['success']) {
-          // ตรวจสอบว่าฟังก์ชันนี้ไม่เป็น null ก่อน แล้วถึงเรียก onBalanceUpdated จากหน้า home_page
+          // เรียก callback ถ้าไม่เป็น null
           widget.onBalanceUpdated?.call();
-          // การหักเงินสำเร็จ
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text("หักเงินจากบัญชีเรียบร้อย")));
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("หักเงินจากบัญชีเรียบร้อย")),
+          );
         } else {
-          // ถ้า API ส่งกลับว่าไม่สำเร็จ
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text("ไม่สามารถหักเงินจากบัญชีได้")),
           );
         }
       } else {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text("เกิดข้อผิดพลาดในการหักเงิน")));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("เกิดข้อผิดพลาดในการหักเงิน")),
+        );
       }
     } catch (e) {
       print("Error: $e");
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("ไม่สามารถเชื่อมต่อกับ API ได้")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("ไม่สามารถเชื่อมต่อกับ API ได้")),
+      );
     }
   }
 
-  // คำนวณ total cost
+  // ฟังก์ชันคำนวณยอดรวมราคาจากเลขที่เลือก
   void updateTotalCost() {
     double newTotal = 0;
+
     for (int i = 0; i < lottoNumbers.length; i++) {
       if (selected[i]) {
-        newTotal += 100; // ราคาใบละ 100
+        newTotal += 100; // ราคาเลขแต่ละตัว 100 บาท
       }
     }
+
     setState(() {
       totalCost = newTotal;
     });
@@ -179,7 +179,7 @@ class _BuyLottoPageState extends State<BuyLottoPage> {
 
   @override
   Widget build(BuildContext context) {
-    // กรองหมายเลขล็อตโต้ตามคำค้นหา
+    // กรองหมายเลขล็อตโต้ตามคำค้นหา (searchQuery)
     final filteredLottoNumbers = lottoNumbers
         .where((number) => number.contains(searchQuery))
         .toList();
@@ -187,6 +187,8 @@ class _BuyLottoPageState extends State<BuyLottoPage> {
     return Column(
       children: [
         const SizedBox(height: 16),
+
+        // หัวข้อ
         const Text(
           "เลือกเลขที่ต้องการซื้อ",
           style: TextStyle(
@@ -195,17 +197,19 @@ class _BuyLottoPageState extends State<BuyLottoPage> {
             color: Colors.teal,
           ),
         ),
+
+        // ช่องค้นหาเลขล็อตโต้
         Padding(
           padding: const EdgeInsets.all(16.0),
           child: TextField(
             onChanged: (query) {
-              // ยกเลิกการดีเบาท์เดิมถ้ามี
+              // ยกเลิกดีเบาท์เดิมถ้ามี
               if (_debounce?.isActive ?? false) _debounce!.cancel();
 
-              // ตั้งเวลาใหม่สำหรับดีเบาท์
+              // ตั้งเวลาดีเบาท์ 500 ms ก่อนอัพเดตคำค้นหา
               _debounce = Timer(const Duration(milliseconds: 500), () {
                 setState(() {
-                  searchQuery = query; // อัพเดตคำค้นหาหลังจากดีเบาท์
+                  searchQuery = query;
                 });
               });
             },
@@ -218,6 +222,7 @@ class _BuyLottoPageState extends State<BuyLottoPage> {
             ),
           ),
         ),
+
         // แสดงข้อความข้อผิดพลาดถ้ามี
         if (errorMessage != null)
           Padding(
@@ -227,13 +232,16 @@ class _BuyLottoPageState extends State<BuyLottoPage> {
               style: const TextStyle(color: Colors.red),
             ),
           ),
+
         // แสดงวงกลมโหลดขณะกำลังดึงข้อมูล
         if (isLoading)
           const Expanded(child: Center(child: CircularProgressIndicator()))
-        // ถ้าไม่พบผลลัพธ์หลังการกรอง
+
+        // ถ้าไม่พบหมายเลขที่ค้นหา
         else if (filteredLottoNumbers.isEmpty)
           const Expanded(child: Center(child: Text("ไม่พบหมายเลขที่ค้นหา")))
-        // แสดงรายการหมายเลขล็อตโต้
+
+        // แสดงรายการหมายเลขล็อตโต้ที่กรองแล้ว
         else
           Expanded(
             child: ListView.builder(
@@ -246,20 +254,16 @@ class _BuyLottoPageState extends State<BuyLottoPage> {
                       filteredLottoNumbers[index],
                       style: const TextStyle(fontSize: 18),
                     ),
+
+                    // Checkbox ให้ผู้ใช้เลือกเลขล็อตโต้
                     trailing: Checkbox(
-                      value:
-                          selected[lottoNumbers.indexOf(
-                            filteredLottoNumbers[index],
-                          )],
+                      value: selected[lottoNumbers.indexOf(filteredLottoNumbers[index])],
                       activeColor: Colors.teal,
                       onChanged: (value) {
                         setState(() {
-                          selected[lottoNumbers.indexOf(
-                                filteredLottoNumbers[index],
-                              )] =
-                              value!;
+                          selected[lottoNumbers.indexOf(filteredLottoNumbers[index])] = value!;
                         });
-                        updateTotalCost(); // อัพเดตค่า total cost เมื่อเลือกเลข
+                        updateTotalCost(); // อัพเดตยอดรวมเมื่อเลือกเลข
                       },
                     ),
                   ),
@@ -267,37 +271,41 @@ class _BuyLottoPageState extends State<BuyLottoPage> {
               },
             ),
           ),
+
+        // ส่วนแสดงยอดรวมและปุ่มซื้อ
         Padding(
           padding: const EdgeInsets.all(16.0),
           child: Column(
             children: [
+              // แสดงยอดรวมราคา
               Text(
-                "ยอดรวม: ฿$totalCost", // แสดงยอดรวม
+                "ยอดรวม: ฿$totalCost",
                 style: const TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
                 ),
               ),
+
               const SizedBox(height: 10),
+
+              // ปุ่มซื้อเลขล็อตโต้ที่เลือกไว้
               ElevatedButton.icon(
                 onPressed: () {
-                  // ค้นหาหมายเลขล็อตโต้ที่ถูกเลือก
+                  // หาเลขล็อตโต้ที่ถูกเลือกจริง ๆ
                   final selectedNumbers = lottoNumbers
                       .where((number) => selected[lottoNumbers.indexOf(number)])
                       .toList();
 
-                  // เรียกฟังก์ชันเพื่ออัพเดตสถานะ
+                  // ถ้ามีเลขถูกเลือก
                   if (selectedNumbers.isNotEmpty) {
-                    updateLottoOwnerAndBalance(
-                      selectedNumbers,
-                    ); // ส่ง userId ไปพร้อมกับ selectedNumbers และหักเงิน
+                    updateLottoOwnerAndBalance(selectedNumbers);
                   } else {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text("กรุณาเลือกหมายเลขก่อน")),
                     );
                   }
                 },
-                icon: const Icon(Icons.shopping_cart),
+                icon: const Icon(Icons.shopping_cart), // ไอคอนรถเข็น
                 label: const Text(
                   "ซื้อที่เลือกไว้",
                   style: TextStyle(fontSize: 18),

@@ -180,7 +180,6 @@ router.get("/buy_al", (req, res) => {
 
 
 
-// Route สำหรับสุ่มรางวัล + บันทึกผล
 router.post("/draw", (req, res) => {
   const deleteSql = "DELETE FROM lotto_winner";
   conn.query(deleteSql, (delErr) => {
@@ -189,7 +188,7 @@ router.post("/draw", (req, res) => {
       return res.status(500).json({ success: false, message: "ลบข้อมูลเดิมไม่สำเร็จ" });
     }
 
-    const getAllSql = "SELECT number FROM lotto_name";
+    const getAllSql = "SELECT number, lottoID FROM lotto_name"; // ดึงเลขและ lottoID
     conn.query(getAllSql, (getErr, allResults: any[]) => {
       if (getErr) {
         console.error("Fetch error:", getErr);
@@ -215,28 +214,42 @@ router.post("/draw", (req, res) => {
         return res.status(400).json({ success: false, message: "เลข 6 หลักไม่พอสำหรับสุ่ม 3 รางวัล" });
       }
 
-      // สุ่ม 3 รางวัลที่ 1–3 จากเลข 6 หลัก
+      // ✅ สุ่มรางวัลที่ 1-3
       const threeSix = pickRandom(sixDigitNumbers, 3);
-      const set1 = [ toSixDigit(threeSix[0].number) ];
-      const set2 = [ toSixDigit(threeSix[1].number) ];
-      const set3 = [ toSixDigit(threeSix[2].number) ];
+      const set1 = [toSixDigit(threeSix[0].number)];
+      const set2 = [toSixDigit(threeSix[1].number)];
+      const set3 = [toSixDigit(threeSix[2].number)];
+      const set1LottoID = threeSix[0].lottoID;
+      const set2LottoID = threeSix[1].lottoID;
+      const set3LottoID = threeSix[2].lottoID;
 
-      // Fix รางวัลเลขท้าย 3 ตัว และ 2 ตัว
-      const fixedLast3 = "123";
-      const fixedLast2 = "45";
+      // ✅ รางวัลเลขท้าย 3 ตัว = 3 ตัวท้ายของรางวัลที่ 1
+      const last3FromSet1 = String(set1[0]).slice(-3); 
+      const set4 = [last3FromSet1];
 
-      const set4 = [ toSixDigit(fixedLast3) ]; // เติมให้ครบ 6 หลัก เช่น 000123
-      const set5 = [ toSixDigit(fixedLast2) ]; // เติมให้ครบ 6 หลัก เช่น 000045
+      // ✅ เลขท้าย 2 ตัว = สุ่ม 0–99
+      const randomLast2 = Math.floor(Math.random() * 100);
+      const last2Str = String(randomLast2).padStart(2, "0"); // ทำให้เป็น 2 หลัก เช่น 5 => "05"
+      const set5 = [last2Str];
 
+      // ✅ หา lottoID ที่มีเลขท้าย 2 ตัว ตรงกับที่สุ่มได้
+      const matchedLast2 = allResults.find(entry => {
+        const numStr = toSixDigit(entry.number);
+        return numStr.slice(-2) === last2Str;
+      });
+
+      const last2LottoID = matchedLast2 ? matchedLast2.lottoID : null;
+
+      // ✅ เตรียมข้อมูลสำหรับบันทึก (เพิ่ม type และ prize_amount ในแต่ละแถว)
       const numbersToInsert = [
-        set1[0],
-        set2[0],
-        set3[0],
-        set4[0],
-        set5[0]
-      ].map(num => [num]);
+        [set1[0], set1LottoID, "รางวัลที่ 1", 6000000],
+        [set2[0], set2LottoID, "รางวัลที่ 2", 500000],
+        [set3[0], set3LottoID, "รางวัลที่ 3", 100000],
+        [set4[0], null, "รางวัลเลขท้าย 3 ตัว", 5000],
+        [set5[0], last2LottoID, "รางวัลเลขท้าย 2 ตัว", 2000]
+      ];
 
-      const insertSql = "INSERT INTO lotto_winner (number) VALUES ?";
+      const insertSql = "INSERT INTO lotto_winner (number, lottoID, type, prize_amount) VALUES ?";
       conn.query(insertSql, [numbersToInsert], (insErr, insertRes: ResultSetHeader) => {
         if (insErr) {
           console.error("Insert error:", insErr);
@@ -250,7 +263,8 @@ router.post("/draw", (req, res) => {
             "2": set2,
             "3": set3,
             "last3": set4,
-            "last2": set5
+            "last2": set5,
+            "last2_lottoID": last2LottoID ?? "ไม่พบ"
           },
           count: insertRes.affectedRows
         });
@@ -258,6 +272,9 @@ router.post("/draw", (req, res) => {
     });
   });
 });
+
+
+
 
 router.get("/winner", (req, res) => {
   const sql = "SELECT number FROM lotto_winner";
@@ -283,6 +300,94 @@ router.get("/winner", (req, res) => {
     res.json({ success: true, winners });
   });
 });
+
+
+// ลบลูกค้าทั้งหมดที่มี role = 'customer'
+router.delete("/reset-customer", (req, res) => {
+  const sql = "DELETE FROM customer WHERE role = 'customer'";
+
+  conn.query(sql, (err, results: any) => {
+    if (err) {
+      console.error("DB ERROR:", err);
+      return res.status(500).json({ success: false, message: "ไม่สามารถลบลูกค้าได้" });
+    }
+
+    res.json({
+      success: true,
+      message: `ลบลูกค้าที่เป็น customer สำเร็จแล้ว (${results.affectedRows} รายการ)`,
+    });
+  });
+});
+
+
+router.get("/check-prize", (req, res) => {
+  const userId = req.query.userId;
+  if (!userId) {
+    return res.status(400).json({ success: false, message: "userId is required" });
+  }
+
+  // ดึงเลขล็อตโต้ของ user พร้อม join กับตาราง lotto_winner เพื่อเอา type รางวัล (ถ้ามี)
+  const sql = `
+    SELECT ln.lottoID, ln.number, lw.type
+    FROM lotto_name ln
+    LEFT JOIN lotto_winner lw ON ln.lottoID = lw.lottoID
+    WHERE ln.owner = ?
+  `;
+
+  conn.query(sql, [userId], (err, results: any[]) => {
+    if (err) {
+      console.error("DB error fetching user lotto with prize type:", err);
+      return res.status(500).json({ success: false, message: "ไม่สามารถดึงข้อมูลล็อตโต้ผู้ใช้ได้" });
+    }
+
+    // map ผลลัพธ์พร้อม flag ว่าถูกรางวัลไหม (ถ้า type != null = ถูกรางวัล)
+    const data = results.map((item: { lottoID: any; number: any; type: null; }) => ({
+      lottoID: item.lottoID,
+      number: item.number,
+      isWinner: item.type !== null,
+      type: item.type, // ส่ง type กลับไปเลย
+    }));
+
+    res.json({ success: true, data });
+  });
+});
+
+
+// เพิ่ม API สำหรับการลบหมายเลขล็อตโต้ที่ขึ้นเงินแล้ว
+router.delete("/claim-prize", (req, res) => {
+  const { userId, lottoID, prizeAmount } = req.body;
+
+  if (!userId || !lottoID || !prizeAmount) {
+    return res.status(400).json({ success: false, message: "ข้อมูลไม่ครบถ้วน" });
+  }
+
+  // อัพเดตยอดเงินในบัญชีผู้ใช้
+  const updateBalanceSql = "UPDATE customer SET balance = balance + ? WHERE idx = ?";
+  conn.query(updateBalanceSql, [prizeAmount, userId], (err, result) => {
+    if (err) {
+      console.error("DB ERROR:", err);
+      return res.status(500).json({ success: false, message: "ไม่สามารถอัพเดตยอดเงินได้" });
+    }
+
+    // ลบหมายเลขล็อตโต้ที่ถูกรางวัลแล้ว
+    const deleteLottoSql = "DELETE FROM lotto_name WHERE lottoID = ?";
+    conn.query(deleteLottoSql, [lottoID], (deleteErr) => {
+      if (deleteErr) {
+        console.error("DB ERROR:", deleteErr);
+        return res.status(500).json({ success: false, message: "ไม่สามารถลบหมายเลขล็อตโต้ได้" });
+      }
+
+      res.json({ success: true, message: "ขึ้นเงินสำเร็จและลบหมายเลขล็อตโต้แล้ว" });
+    });
+  });
+});
+
+
+
+
+
+
+
 
 
 
